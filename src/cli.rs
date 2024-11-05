@@ -12,4 +12,5 @@ pub struct Cli {
 pub enum Commands {
     Default { input: Vec<String> },
     PassedFiles { input: Vec<String> },
+    Ls { files: Vec<String> },
 }
