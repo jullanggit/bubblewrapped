@@ -7,7 +7,7 @@ impl Default for BwrapArgs {
         let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR")
             .expect("Environment Variable \"XDG_RUNTIME_DIR\" should be set");
 
-        let home_dir = env::var("HOME").expect("Environment Variable \"HOME\" should be set");
+        let home_dir = home_dir();
 
         let path = env::var("PATH").expect("Environment Variable \"PATH\" should be set");
 
@@ -52,20 +52,70 @@ impl Default for BwrapArgs {
     }
 }
 
-impl BwrapArgs {
-    /// Tries to interpret all args of the passed command as binds
-    pub fn pass_files(input: Vec<String>) -> Self {
-        let mut default = Self::default();
+fn home_dir() -> String {
+    env::var("HOME").expect("Environment Variable \"HOME\" should be set")
+}
 
-        for file in input.into_iter().skip(1) {
-            default.binds.push(Bind {
-                bind_type: BindType::default(),
-                source: file.into(),
-                destination: None,
-                ignore_missing_src: true,
-            });
+impl BwrapArgs {
+    pub fn pass_files(mut self, input: Vec<String>, skip_first: bool) -> Self {
+        for file in input.into_iter().skip(skip_first as usize) {
+            self.binds.push(Bind::new(file.into()));
+        }
+        self
+    }
+    pub fn ls(input: &mut Vec<String>) -> Self {
+        input.insert(0, "eza".into());
+
+        let paths: Vec<_> = input
+            .iter()
+            .skip(1) // Skip the "eza"
+            .filter(|part| !part.starts_with('-'))
+            .cloned()
+            .collect();
+
+        if paths.is_empty() {
+            input.push(working_directory())
         }
 
-        default
+        Self::default().pass_files(paths, false)
     }
+
+    fn cur_dir_rw(mut self) -> Self {
+        self.binds.push(Bind::with_bind_type(
+            working_directory().into(),
+            BindType::ReadWrite,
+        ));
+        self
+    }
+    pub fn nvim(nvim_args: &mut Vec<String>) -> Self {
+        nvim_args.insert(0, "nvim".into());
+
+        let home_dir = home_dir();
+
+        let additional_paths = [
+            Bind::new(format!("{home_dir}/.config/nvim").into()),
+            Bind::with_bind_type(
+                format!("{home_dir}/.cache/nvim").into(),
+                BindType::ReadWrite,
+            ),
+            Bind::with_bind_type(
+                format!("{home_dir}/.local/share/nvim").into(),
+                BindType::ReadWrite,
+            ),
+            Bind::with_bind_type(
+                format!("{home_dir}/.local/state/nvim").into(),
+                BindType::ReadWrite,
+            ),
+        ];
+
+        let mut args = Self::default().cur_dir_rw();
+
+        args.binds.extend(additional_paths);
+
+        args
+    }
+}
+
+fn working_directory() -> String {
+    env::current_dir().unwrap().to_str().unwrap().into()
 }

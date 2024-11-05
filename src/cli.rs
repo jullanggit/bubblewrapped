@@ -13,4 +13,5 @@ pub enum Commands {
     Default { input: Vec<String> },
     PassFiles { input: Vec<String> },
     Ls { files: Vec<String> },
+    Nvim { args: Vec<String> },
 }

@@ -1,7 +1,4 @@
-use std::{
-    env,
-    process::{exit, Command},
-};
+use std::process::{exit, Command};
 
 use clap::Parser;
 use cli::{Cli, Commands};
@@ -197,16 +194,13 @@ fn main() {
 
     let (bwrap_args, input) = match cli_args.command {
         Commands::Default { input } => (BwrapArgs::default(), input),
-        Commands::PassFiles { input } => (BwrapArgs::pass_files(input.clone()), input),
-        Commands::Ls { mut files } => {
-            files.insert(0, "eza".into());
-
-            if files.len() == 1 {
-                files.push(env::current_dir().unwrap().to_str().unwrap().into());
-            }
-            (BwrapArgs::pass_files(files.clone()), files)
+        Commands::PassFiles { input } => {
+            (BwrapArgs::default().pass_files(input.clone(), true), input)
         }
+        Commands::Ls { mut files } => (BwrapArgs::ls(&mut files), files),
+        Commands::Nvim { mut args } => (BwrapArgs::nvim(&mut args), args),
     };
+
     if input.is_empty() {
         eprintln!("Please supply a command to run in the sandbox");
         exit(1);
