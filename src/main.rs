@@ -1,29 +1,30 @@
 use std::{env, process::Command};
 
-struct BwrapArgs {
+mod configs;
+pub struct BwrapArgs {
     /// Unshare every namespace supported by default
-    unshare_all: bool,
+    pub unshare_all: bool,
     /// Retain the network namespace (can only combine with unshare_all)
-    share_net: bool,
+    pub share_net: bool,
     /// Unset all environment variables
-    clear_env: bool,
-    new_session: bool,
-    die_with_parent: bool,
+    pub clear_env: bool,
+    pub new_session: bool,
+    pub die_with_parent: bool,
     /// Custom hostname in the sandbox (requires --unshare-uts)
-    hostname: Option<Box<str>>,
+    pub hostname: Option<Box<str>>,
     /// Mount new procfs
-    proc: Option<Box<str>>,
+    pub proc: Option<Box<str>>,
     /// Mount new dev
-    dev: Option<Box<str>>,
+    pub dev: Option<Box<str>>,
     /// Mount new tmpfs
-    tmp_fs: Option<Box<str>>,
+    pub tmp_fs: Option<Box<str>>,
     /// Set environment variables
-    set_env: Vec<(Box<str>, Box<str>)>,
+    pub set_env: Vec<(Box<str>, Box<str>)>,
     /// Unset environment variables
-    unset_env: Vec<Box<str>>,
-    binds: Vec<Bind>,
-    dirs: Vec<Dir>,
-    symlinks: Vec<(Box<str>, Box<str>)>,
+    pub unset_env: Vec<Box<str>>,
+    pub binds: Vec<Bind>,
+    pub dirs: Vec<Dir>,
+    pub symlinks: Vec<(Box<str>, Box<str>)>,
 }
 impl BwrapArgs {
     fn args(&self) -> Vec<Box<str>> {
@@ -120,7 +121,6 @@ impl BwrapArgs {
         }
         command
     }
-}
 impl BwrapArgs {
     fn default() -> Self {
         let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR")
@@ -167,12 +167,12 @@ impl BwrapArgs {
 }
 
 #[derive(Clone)]
-struct Bind {
-    bind_type: BindType,
-    source: Box<str>,
+pub struct Bind {
+    pub bind_type: BindType,
+    pub source: Box<str>,
     // Defaults to source when unset
-    destination: Option<Box<str>>,
-    ignore_missing_src: bool,
+    pub destination: Option<Box<str>>,
+    pub ignore_missing_src: bool,
 }
 
 impl Bind {
@@ -190,7 +190,7 @@ impl Bind {
 }
 
 #[derive(Default, Clone, Copy)]
-enum BindType {
+pub enum BindType {
     #[default]
     ReadOnly,
     ReadWrite,
@@ -199,7 +199,7 @@ enum BindType {
 
 /// Create an emtpy directory at path
 #[derive(Clone)]
-struct Dir {
+pub struct Dir {
     // Really a 9-bit flag
     permissions: Option<Box<str>>,
     path: Box<str>,
