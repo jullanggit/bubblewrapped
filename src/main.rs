@@ -1,6 +1,6 @@
 use std::{env, process::Command};
 
-struct BwrapArgs<'a> {
+struct BwrapArgs {
     /// Unshare every namespace supported by default
     unshare_all: bool,
     /// Retain the network namespace (can only combine with unshare_all)
@@ -10,99 +10,99 @@ struct BwrapArgs<'a> {
     new_session: bool,
     die_with_parent: bool,
     /// Custom hostname in the sandbox (requires --unshare-uts)
-    hostname: Option<&'a str>,
+    hostname: Option<Box<str>>,
     /// Mount new procfs
-    proc: Option<&'a str>,
+    proc: Option<Box<str>>,
     /// Mount new dev
-    dev: Option<&'a str>,
+    dev: Option<Box<str>>,
     /// Mount new tmpfs
-    tmp_fs: Option<&'a str>,
+    tmp_fs: Option<Box<str>>,
     /// Set environment variables
-    set_env: Vec<(&'a str, &'a str)>,
+    set_env: Vec<(Box<str>, Box<str>)>,
     /// Unset environment variables
-    unset_env: Vec<&'a str>,
-    binds: Vec<Bind<'a>>,
-    dirs: Vec<Dir<'a>>,
-    symlinks: Vec<(&'a str, &'a str)>,
+    unset_env: Vec<Box<str>>,
+    binds: Vec<Bind>,
+    dirs: Vec<Dir>,
+    symlinks: Vec<(Box<str>, Box<str>)>,
 }
-impl BwrapArgs<'_> {
-    fn args(&self) -> Vec<&str> {
+impl BwrapArgs {
+    fn args(&self) -> Vec<Box<str>> {
         let mut args = Vec::new();
 
         if self.unshare_all {
-            args.push("--unshare-all");
+            args.push("--unshare-all".into());
 
             if self.share_net {
-                args.push("--share-net");
+                args.push("--share-net".into());
             }
         }
 
         if self.clear_env {
-            args.push("--clearenv");
+            args.push("--clearenv".into());
         }
 
         if self.new_session {
-            args.push("--new-session");
+            args.push("--new-session".into());
         }
 
         if self.die_with_parent {
-            args.push("--die-with-parent");
+            args.push("--die-with-parent".into());
         }
 
         // TODO: Add validation if this argument is allowed (unshare-uts)
-        if let Some(hostname) = self.hostname {
-            args.push("--hostname");
+        if let Some(hostname) = self.hostname.clone() {
+            args.push("--hostname".into());
             args.push(hostname);
         }
 
-        if let Some(proc) = self.proc {
-            args.push("--proc");
+        if let Some(proc) = self.proc.clone() {
+            args.push("--proc".into());
             args.push(proc);
         }
-        if let Some(dev) = self.dev {
-            args.push("--dev");
+        if let Some(dev) = self.dev.clone() {
+            args.push("--dev".into());
             args.push(dev);
         }
-        if let Some(tmp_fs) = self.tmp_fs {
-            args.push("--tmpfs");
+        if let Some(tmp_fs) = self.tmp_fs.clone() {
+            args.push("--tmpfs".into());
             args.push(tmp_fs);
         }
 
-        for (var, value) in &self.set_env {
-            args.push("--setenv");
+        for (var, value) in self.set_env.iter().cloned() {
+            args.push("--setenv".into());
             args.push(var);
             args.push(value);
         }
 
-        for var in &self.unset_env {
-            args.push("--unsetenv");
+        for var in self.unset_env.iter().cloned() {
+            args.push("--unsetenv".into());
             args.push(var);
         }
 
-        for bind in &self.binds {
+        for bind in self.binds.iter().cloned() {
             args.push(match (bind.bind_type, bind.ignore_missing_src) {
-                (BindType::ReadOnly, false) => "--ro-bind",
-                (BindType::ReadOnly, true) => "--ro-bind-try",
-                (BindType::ReadWrite, false) => "--bind",
-                (BindType::ReadWrite, true) => "--bind-try",
-                (BindType::Dev, false) => "--dev-bind",
-                (BindType::Dev, true) => "--dev-bind-try",
+                (BindType::ReadOnly, false) => "--ro-bind".into(),
+                (BindType::ReadOnly, true) => "--ro-bind-try".into(),
+                (BindType::ReadWrite, false) => "--bind".into(),
+                (BindType::ReadWrite, true) => "--bind-try".into(),
+                (BindType::Dev, false) => "--dev-bind".into(),
+                (BindType::Dev, true) => "--dev-bind-try".into(),
             });
-            args.push(bind.source);
-            args.push(bind.destination);
+            args.push(bind.source.clone());
+            args.push(bind.destination.unwrap_or(bind.source));
         }
 
-        for dir in &self.dirs {
+        for dir in self.dirs.iter().cloned() {
             if let Some(permissions) = dir.permissions {
-                args.push("--perms");
+                args.push("--perms".into());
                 args.push(permissions);
             }
-            args.push("--dir");
+            args.push("--dir".into());
             args.push(dir.path);
         }
 
-        for (source, destination) in &self.symlinks {
-            args.push("--symlink");
+        for (source, destination) in self.symlinks.iter().cloned() {
+            args.push("--symlink".into());
             args.push(source);
             args.push(destination);
         }
@@ -112,63 +112,74 @@ impl BwrapArgs<'_> {
     fn command(&self) -> Command {
         let args = self.args();
         let mut command = Command::new("bwrap");
-        command.args(args);
+
+        // .args(args.map(&*)) doesnt work because of reference to variable owned by local function
+        for arg in args {
+            command.arg(&*arg);
+        }
         command
     }
 }
-impl<'a> BwrapArgs<'a> {
-    // TODO: Somehow make the xdg_runtime_dir a const, so you dont have to pass it in
-    fn new(xdg_runtime_dir: &'a str) -> Self {
+impl BwrapArgs {
+    fn default() -> Self {
+        let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR")
+            .expect("Environment Variable \"XDG_RUNTIME_DIR\" should exist");
+
+        let home_dir = env::var("HOME").expect("Environment Variable \"HOME\" should exist");
         Self {
             unshare_all: true,
             share_net: false,
-            hostname: Some("jail"),
+            hostname: Some("jail".into()),
             clear_env: true,
-            set_env: Vec::new(),
+            set_env: vec![("PATH".into(), path.into())],
             unset_env: Vec::new(),
             new_session: true,
             die_with_parent: true,
-            proc: Some("/proc"),
-            dev: Some("/dev"),
-            tmp_fs: Some("/tmp"),
+            proc: Some("/proc".into()),
+            dev: Some("/dev".into()),
+            tmp_fs: Some("/tmp".into()),
             dirs: vec![
                 // Basic Directories
-                Dir::new("/var"),
-                Dir::new("/run"),
-                Dir::with_perms(xdg_runtime_dir, "0700"),
+                Dir::new("/var".into()),
+                Dir::new("/run".into()),
+                Dir::with_perms(xdg_runtime_dir.into(), "0700".into()),
             ],
             symlinks: vec![
-                ("../run", "/var/run"),
+                ("/run".into(), "/var/run".into()),
                 // Merged-usr symlinks
-                ("/usr/lib", "/lib"),
-                ("/usr/lib64", "/lib64"),
-                ("/usr/bin", "/bin"),
-                ("/usr/sbin", "/sbin"),
+                ("/usr/lib".into(), "/lib".into()),
+                ("/usr/lib64".into(), "/lib64".into()),
+                ("/usr/bin".into(), "/bin".into()),
+                ("/usr/sbin".into(), "/sbin".into()),
             ],
             binds: vec![
-                Bind::new(BindType::ReadOnly, "/usr"),
-                Bind::new(BindType::ReadOnly, "/sys"),
-                Bind::new(BindType::ReadOnly, "/etc"),
-                Bind::new(BindType::ReadOnly, "~/.cargo/bin"),
+                Bind::new("/usr".into()),
+                Bind::new("/sys".into()),
+                Bind::new("/etc".into()),
+                Bind::new(format!("{home_dir}/.cargo/bin").into()),
             ],
         }
     }
 }
 
-struct Bind<'a> {
+#[derive(Clone)]
+struct Bind {
     bind_type: BindType,
-    source: &'a str,
-    // TODO: See what this should be set to
-    destination: &'a str,
+    source: Box<str>,
+    // Defaults to source when unset
+    destination: Option<Box<str>>,
     ignore_missing_src: bool,
 }
 
-impl<'a> Bind<'a> {
-    fn new(bind_type: BindType, source: &'a str) -> Self {
+impl Bind {
+    fn new(source: Box<str>) -> Self {
+        Self::with_bind_type(source, BindType::default())
+    }
+    fn with_bind_type(source: Box<str>, bind_type: BindType) -> Self {
         Self {
             bind_type,
             source,
-            destination: source,
+            destination: None,
             ignore_missing_src: false,
         }
     }
@@ -183,19 +194,20 @@ enum BindType {
 }
 
 /// Create an emtpy directory at path
-struct Dir<'a> {
+#[derive(Clone)]
+struct Dir {
     // Really a 9-bit flag
-    permissions: Option<&'a str>,
-    path: &'a str,
+    permissions: Option<Box<str>>,
+    path: Box<str>,
 }
-impl<'a> Dir<'a> {
-    fn new(path: &'a str) -> Self {
+impl Dir {
+    fn new(path: Box<str>) -> Self {
         Self {
             permissions: None,
             path,
         }
     }
-    fn with_perms(path: &'a str, permissions: &'a str) -> Self {
+    fn with_perms(path: Box<str>, permissions: Box<str>) -> Self {
         Self {
             permissions: Some(permissions),
             path,
@@ -204,19 +216,15 @@ impl<'a> Dir<'a> {
 }
 
 fn main() {
-    let program: Vec<_> = env::args().skip(2).collect();
+    let program: Vec<_> = env::args().skip(1).collect();
 
-    let xdg_runtime_dir =
-        env::var("XDG_RUNTIME_DIR").expect("Environment Variable XDG_RUNTIME_DIR should exist");
-
-    let bwrap_args = BwrapArgs::new(&xdg_runtime_dir);
+    let bwrap_args = BwrapArgs::default();
 
     let mut command = bwrap_args.command();
+
+    command.arg("--").args(program);
+
     dbg!(&command);
-    command
-        .args(program)
-        .spawn()
-        .unwrap()
-        .wait_with_output()
-        .unwrap();
+
+    command.spawn().unwrap().wait_with_output().unwrap();
 }
