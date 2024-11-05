@@ -1,6 +1,14 @@
-use std::{env, process::Command};
+use std::{
+    env,
+    process::{exit, Command},
+};
 
+use clap::Parser;
+use cli::{Cli, Commands};
+
+mod cli;
 mod configs;
+
 pub struct BwrapArgs {
     /// Unshare every namespace supported by default
     pub unshare_all: bool,
@@ -220,15 +228,11 @@ impl Dir {
 }
 
 fn main() {
-    let program: Vec<_> = env::args().skip(1).collect();
+    let cli_args = Cli::parse();
 
-    let bwrap_args = BwrapArgs::default();
+    let (bwrap_args, input) = match cli_args.command {
+        Commands::Default { input } => (BwrapArgs::default(), input),
 
-    let mut command = bwrap_args.command();
-
-    command.arg("--").args(program);
-
-    dbg!(&command);
-
-    command.spawn().unwrap().wait_with_output().unwrap();
+    };
+    bwrap_args.run(input);
 }
