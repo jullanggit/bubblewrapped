@@ -111,6 +111,7 @@ impl BwrapArgs {
     }
     fn command(&self) -> Command {
         let args = self.args();
+
         let mut command = Command::new("bwrap");
 
         // .args(args.map(&*)) doesnt work because of reference to variable owned by local function
@@ -126,6 +127,9 @@ impl BwrapArgs {
             .expect("Environment Variable \"XDG_RUNTIME_DIR\" should exist");
 
         let home_dir = env::var("HOME").expect("Environment Variable \"HOME\" should exist");
+
+        let path = env::var("PATH").expect("Environment Variable \"PATH\" should exist");
+
         Self {
             unshare_all: true,
             share_net: false,
