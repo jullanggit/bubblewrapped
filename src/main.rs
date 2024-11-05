@@ -197,14 +197,14 @@ fn main() {
 
     let (bwrap_args, input) = match cli_args.command {
         Commands::Default { input } => (BwrapArgs::default(), input),
-        Commands::PassedFiles { input } => (BwrapArgs::passed_files(input.clone()), input),
+        Commands::PassFiles { input } => (BwrapArgs::pass_files(input.clone()), input),
         Commands::Ls { mut files } => {
             files.insert(0, "eza".into());
 
             if files.len() == 1 {
                 files.push(env::current_dir().unwrap().to_str().unwrap().into());
             }
-            (BwrapArgs::passed_files(files.clone()), files)
+            (BwrapArgs::pass_files(files.clone()), files)
         }
     };
     if input.is_empty() {
