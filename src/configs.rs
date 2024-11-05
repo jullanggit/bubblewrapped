@@ -72,7 +72,7 @@ impl BwrapArgs {
     pub fn ls(input: &mut Vec<String>) -> Self {
         input.insert(0, "eza".into());
 
-        let paths: Vec<_> = input
+        let mut paths: Vec<_> = input
             .iter()
             .skip(1) // Skip the "eza"
             .filter(|part| !part.starts_with('-'))
@@ -80,7 +80,7 @@ impl BwrapArgs {
             .collect();
 
         if paths.is_empty() {
-            input.push(working_directory())
+            paths.push(working_directory())
         }
 
         Self::default().pass_files(paths, false)
