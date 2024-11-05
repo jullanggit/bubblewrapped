@@ -5,13 +5,13 @@ use crate::{Bind, BindType, BwrapArgs, Dir};
 impl Default for BwrapArgs {
     fn default() -> Self {
         let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR")
-            .expect("Environment Variable \"XDG_RUNTIME_DIR\" should exist");
+            .expect("Environment Variable \"XDG_RUNTIME_DIR\" should be set");
 
-        let home_dir = env::var("HOME").expect("Environment Variable \"HOME\" should exist");
+        let home_dir = env::var("HOME").expect("Environment Variable \"HOME\" should be set");
 
-        let path = env::var("PATH").expect("Environment Variable \"PATH\" should exist");
+        let path = env::var("PATH").expect("Environment Variable \"PATH\" should be set");
 
-        Self {
+        let mut args = Self {
             unshare_all: true,
             share_net: false,
             hostname: Some("jail".into()),
@@ -43,7 +43,12 @@ impl Default for BwrapArgs {
                 Bind::new("/etc".into()),
                 Bind::new(format!("{home_dir}/.cargo/bin").into()),
             ],
+        };
+        if let Ok(term) = env::var("TERM") {
+            args.set_env.push(("TERM".into(), term.into()));
         }
+
+        args
     }
 }
 
