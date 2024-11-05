@@ -15,7 +15,10 @@ impl Default for BwrapArgs {
             share_net: false,
             hostname: Some("jail".into()),
             clear_env: true,
-            set_env: vec![("PATH".into(), path.into())],
+            set_env: vec![
+                ("PATH".into(), path.into()),
+                ("XDG_RUNTIME_DIR".into(), xdg_runtime_dir.clone().into()),
+            ],
             unset_env: Vec::new(),
             new_session: true,
             die_with_parent: true,
