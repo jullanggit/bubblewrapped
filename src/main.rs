@@ -207,5 +207,9 @@ fn main() {
             (BwrapArgs::passed_files(files.clone()), files)
         }
     };
+    if input.is_empty() {
+        eprintln!("Please supply a command to run in the sandbox");
+        exit(1);
+    }
     bwrap_args.run(input);
 }
