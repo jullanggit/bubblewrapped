@@ -4,12 +4,11 @@ use crate::{Bind, BindType, BwrapArgs, Dir};
 
 impl Default for BwrapArgs {
     fn default() -> Self {
-        let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR")
-            .expect("Environment Variable \"XDG_RUNTIME_DIR\" should be set");
+        let xdg_runtime_dir = xdg_runtime_dir();
 
         let home_dir = home_dir();
 
-        let path = env::var("PATH").expect("Environment Variable \"PATH\" should be set");
+        let path = env::var("PATH").unwrap();
 
         let mut args = Self {
             unshare_all: true,
@@ -53,7 +52,11 @@ impl Default for BwrapArgs {
 }
 
 fn home_dir() -> String {
-    env::var("HOME").expect("Environment Variable \"HOME\" should be set")
+    env::var("HOME").unwrap()
+}
+
+fn xdg_runtime_dir() -> String {
+    env::var("XDG_RUNTIME_DIR").unwrap()
 }
 
 impl BwrapArgs {
@@ -87,6 +90,22 @@ impl BwrapArgs {
         ));
         self
     }
+
+    fn wl_socket(mut self) -> Self {
+        let wayland_display = env::var("WAYLAND_DISPLAY").unwrap().into_boxed_str();
+        let xdg_runtime_dir = xdg_runtime_dir();
+
+        self.set_env
+            .push(("WAYLAND_DISPLAY".into(), wayland_display.clone()));
+
+        self.binds.push(Bind::with_bind_type(
+            format!("{xdg_runtime_dir}/{wayland_display}").into(),
+            BindType::ReadWrite,
+        ));
+
+        self
+    }
+
     pub fn nvim(nvim_args: &mut Vec<String>) -> Self {
         nvim_args.insert(0, "nvim".into());
 
@@ -108,7 +127,7 @@ impl BwrapArgs {
             ),
         ];
 
-        let mut args = Self::default().cur_dir_rw();
+        let mut args = Self::default().cur_dir_rw().wl_socket();
 
         args.binds.extend(additional_paths);
 
