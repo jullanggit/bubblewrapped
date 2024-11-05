@@ -11,4 +11,5 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     Default { input: Vec<String> },
+    PassedFiles { input: Vec<String> },
 }

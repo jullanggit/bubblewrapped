@@ -46,3 +46,21 @@ impl Default for BwrapArgs {
         }
     }
 }
+
+impl BwrapArgs {
+    /// Tries to interpret all args of the passed command as binds
+    pub fn passed_files(input: Vec<String>) -> Self {
+        let mut default = Self::default();
+
+        for file in input.into_iter().skip(1) {
+            default.binds.push(Bind {
+                bind_type: BindType::default(),
+                source: file.into(),
+                destination: None,
+                ignore_missing_src: true,
+            });
+        }
+
+        default
+    }
+}
