@@ -165,9 +165,9 @@ impl BwrapArgs {
 
     fn add_symlink_dst(&mut self, source: PathBox, bind: Bind) -> Result<()> {
         // Where the source symlink points to
-        let src_dst = source.0.read_link()?;
+        let dst = source.0.canonicalize()?;
         self.binds.push(Bind::_new_inner(
-            src_dst.into(),
+            dst.into(),
             bind.destination.clone(),
             bind.bind_type,
             bind.allow_missing_src,
