@@ -150,7 +150,7 @@ impl BwrapArgs {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Bind {
     pub bind_type: BindType,
     pub source: PathBox,
@@ -187,7 +187,7 @@ impl Bind {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum BindType {
     #[default]
     ReadOnly,
@@ -217,7 +217,7 @@ impl Dir {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 /// A wrapper type around Box<Path>
 pub struct PathBox(pub Box<Path>);
 impl From<&str> for PathBox {

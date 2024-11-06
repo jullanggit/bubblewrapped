@@ -153,6 +153,10 @@ impl BwrapArgs {
                 for result in bind.source.0.read_dir()? {
                     let path = PathBox::from(result?.path());
 
+                    if path == "/etc/mtab".into() {
+                        continue;
+                    }
+
                     if path.0.is_symlink() {
                         self.add_symlink_dst(path, bind.clone())?;
                     }
@@ -166,6 +170,7 @@ impl BwrapArgs {
     fn add_symlink_dst(&mut self, source: PathBox, bind: Bind) -> Result<()> {
         // Where the source symlink points to
         let dst = source.0.canonicalize()?;
+
         self.binds.push(Bind::_new_inner(
             dst.into(),
             bind.destination.clone(),
