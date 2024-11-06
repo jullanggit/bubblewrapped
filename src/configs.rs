@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use std::env;
+use std::{env, io};
 
 use crate::{Bind, BindType, BwrapArgs, Dir, PathBox};
 
@@ -173,14 +173,22 @@ impl BwrapArgs {
 
     fn add_symlink_dst(&mut self, source: PathBox, bind: Bind) -> Result<()> {
         // Where the source symlink points to
-        let dst = source.0.canonicalize()?;
-
-        self.binds.push(Bind::_new_inner(
-            dst.into(),
-            bind.destination.clone(),
-            bind.bind_type,
-            bind.allow_missing_src,
-        )?);
+        match source.0.canonicalize() {
+            Ok(dst) => {
+                self.binds.push(Bind::_new_inner(
+                    dst.into(),
+                    bind.destination.clone(),
+                    bind.bind_type,
+                    bind.allow_missing_src,
+                )?);
+            }
+            Err(e) => {
+                // Allow not found to happen, as we dont want to error on broken symlinks
+                if e.kind() != io::ErrorKind::NotFound {
+                    Err(e)?
+                }
+            }
+        }
 
         Ok(())
     }

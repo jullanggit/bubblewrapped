@@ -10,6 +10,7 @@ use cli::{Cli, Commands};
 mod cli;
 mod configs;
 
+#[derive(Debug)]
 pub struct BwrapArgs {
     /// Unshare every namespace supported by default
     pub unshare_all: bool,
@@ -196,7 +197,7 @@ pub enum BindType {
 }
 
 /// Create an emtpy directory at path
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Dir {
     // Really a 9-bit flag
     permissions: Option<Box<str>>,
