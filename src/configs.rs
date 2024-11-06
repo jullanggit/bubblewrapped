@@ -1,14 +1,17 @@
+use anyhow::{anyhow, Result};
 use std::env;
 
 use crate::{Bind, BindType, BwrapArgs, Dir, PathBox};
 
-impl Default for BwrapArgs {
-    fn default() -> Self {
-        let xdg_runtime_dir = xdg_runtime_dir();
+impl BwrapArgs {
+    // Not a trait impl because of the result
+    #[expect(clippy::should_implement_trait)]
+    pub fn default() -> Result<Self> {
+        let xdg_runtime_dir = xdg_runtime_dir()?;
 
-        let home_dir = home_dir();
+        let home_dir = home_dir()?;
 
-        let path = env::var("PATH").unwrap();
+        let path = env::var("PATH")?;
 
         let mut args = Self {
             unshare_all: true,
@@ -51,16 +54,16 @@ impl Default for BwrapArgs {
             args.set_env.push(("TERM".into(), term.into()));
         }
 
-        args
+        Ok(args)
     }
 }
 
-fn home_dir() -> String {
-    env::var("HOME").unwrap()
+fn home_dir() -> Result<String> {
+    Ok(env::var("HOME")?)
 }
 
-fn xdg_runtime_dir() -> String {
-    env::var("XDG_RUNTIME_DIR").unwrap()
+fn xdg_runtime_dir() -> Result<String> {
+    Ok(env::var("XDG_RUNTIME_DIR").unwrap())
 }
 
 impl BwrapArgs {
@@ -70,7 +73,7 @@ impl BwrapArgs {
         }
         self
     }
-    pub fn ls(input: &mut Vec<String>) -> Self {
+    pub fn ls(input: &mut Vec<String>) -> Result<Self> {
         input.insert(0, "eza".into());
 
         let mut paths: Vec<_> = input
@@ -81,23 +84,23 @@ impl BwrapArgs {
             .collect();
 
         if paths.is_empty() {
-            paths.push(working_directory())
+            paths.push(working_directory()?)
         }
 
-        Self::default().pass_files(paths, false)
+        Ok(Self::default()?.pass_files(paths, false))
     }
 
-    fn cur_dir_rw(mut self) -> Self {
+    fn cur_dir_rw(mut self) -> Result<Self> {
         self.binds.push(Bind::with_bind_type(
-            working_directory().into(),
+            working_directory()?.into(),
             BindType::ReadWrite,
         ));
-        self
+        Ok(self)
     }
 
-    fn wl_socket(mut self) -> Self {
-        let wayland_display = env::var("WAYLAND_DISPLAY").unwrap().into_boxed_str();
-        let xdg_runtime_dir = xdg_runtime_dir();
+    fn wl_socket(mut self) -> Result<Self> {
+        let wayland_display = env::var("WAYLAND_DISPLAY")?.into_boxed_str();
+        let xdg_runtime_dir = xdg_runtime_dir()?;
 
         self.set_env
             .push(("WAYLAND_DISPLAY".into(), wayland_display.clone()));
@@ -107,13 +110,13 @@ impl BwrapArgs {
             BindType::ReadWrite,
         ));
 
-        self
+        Ok(self)
     }
 
-    pub fn nvim(nvim_args: &mut Vec<String>) -> Self {
+    pub fn nvim(nvim_args: &mut Vec<String>) -> Result<Self> {
         nvim_args.insert(0, "nvim".into());
 
-        let home_dir = home_dir();
+        let home_dir = home_dir()?;
 
         let additional_paths = [
             Bind::new(format!("{home_dir}/.config/nvim").into()),
@@ -131,47 +134,52 @@ impl BwrapArgs {
             ),
         ];
 
-        let mut args = Self::default().cur_dir_rw().wl_socket();
+        let mut args = Self::default()?.cur_dir_rw()?.wl_socket()?;
 
         args.binds.extend(additional_paths);
 
-        args
+        Ok(args)
     }
     // TODO: Remove .clone()'s
-    pub fn add_symlinks(mut self) -> Self {
+    pub fn add_symlinks(mut self) -> Result<Self> {
         let len = self.binds.len();
 
         for i in 0..len {
             let bind = self.binds[i].clone();
 
             if bind.source.0.is_symlink() {
-                self.add_symlink_dst(bind.source.clone(), bind.clone());
+                self.add_symlink_dst(bind.source.clone(), bind.clone())?;
             } else if bind.source.0.is_dir() {
-                bind.source
-                    .0
-                    .read_dir()
-                    .expect("Reading dir failed")
-                    .map(|res| PathBox::from(res.expect("Reading dir entry failed").path()))
-                    .filter(|path| path.0.is_symlink())
-                    .for_each(|symlink| self.add_symlink_dst(symlink, bind.clone()));
+                for result in bind.source.0.read_dir()? {
+                    let path = PathBox::from(result?.path());
+
+                    if path.0.is_symlink() {
+                        self.add_symlink_dst(path, bind.clone())?;
+                    }
+                }
             }
         }
 
-        self
+        Ok(self)
     }
 
-    fn add_symlink_dst(&mut self, source: PathBox, bind: Bind) {
+    fn add_symlink_dst(&mut self, source: PathBox, bind: Bind) -> Result<()> {
         // Where the source symlink points to
-        let src_dst = source.0.read_link().expect("Reading symlink failed");
+        let src_dst = source.0.read_link()?;
         self.binds.push(Bind::_new_inner(
             src_dst.into(),
             bind.destination.clone(),
             bind.bind_type,
             bind.allow_missing_src,
         ));
+
+        Ok(())
     }
 }
 
-fn working_directory() -> String {
-    env::current_dir().unwrap().to_str().unwrap().into()
+fn working_directory() -> Result<String> {
+    Ok(env::current_dir()?
+        .to_str()
+        .ok_or(anyhow!("Path is not valid utf-8"))?
+        .into())
 }

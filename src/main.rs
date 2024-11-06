@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::{
     path::{Path, PathBuf},
     process::{exit, Command},
@@ -237,19 +238,19 @@ impl From<PathBox> for Box<str> {
     }
 }
 
-fn main() {
+fn main() -> Result<()> {
     let cli_args = Cli::parse();
 
     let (mut bwrap_args, input) = match cli_args.command {
-        Commands::Default { input } => (BwrapArgs::default(), input),
+        Commands::Default { input } => (BwrapArgs::default()?, input),
         Commands::PassFiles { input } => {
-            (BwrapArgs::default().pass_files(input.clone(), true), input)
+            (BwrapArgs::default()?.pass_files(input.clone(), true), input)
         }
-        Commands::Ls { mut files } => (BwrapArgs::ls(&mut files), files),
-        Commands::Nvim { mut args } => (BwrapArgs::nvim(&mut args), args),
+        Commands::Ls { mut files } => (BwrapArgs::ls(&mut files)?, files),
+        Commands::Nvim { mut args } => (BwrapArgs::nvim(&mut args)?, args),
     };
     if bwrap_args.follow_symlinks {
-        bwrap_args = bwrap_args.add_symlinks();
+        bwrap_args = bwrap_args.add_symlinks()?;
     }
 
     if input.is_empty() {
@@ -257,4 +258,6 @@ fn main() {
         exit(1);
     }
     bwrap_args.run(input);
+
+    Ok(())
 }
