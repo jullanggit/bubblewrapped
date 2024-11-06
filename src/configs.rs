@@ -50,8 +50,12 @@ impl BwrapArgs {
                 Bind::new(format!("{home_dir}/.cargo/bin").into())?,
             ],
         };
-        if let Ok(term) = env::var("TERM") {
-            args.set_env.push(("TERM".into(), term.into()));
+
+        let include_if_exists = ["TERM", "COLORTERM"];
+        for key in include_if_exists {
+            if let Ok(value) = env::var(key) {
+                args.set_env.push((key.into(), value.into()));
+            }
         }
 
         Ok(args)
