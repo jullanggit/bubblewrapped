@@ -91,7 +91,17 @@ impl BwrapArgs {
             paths.push(working_directory()?)
         }
 
-        Self::default()?.pass_files(paths, false)
+        // If the root folder is included, dont bother binding or symlinking anything (also avoids
+        // an error)
+        if paths.contains(&"/".into()) {
+            let mut default = Self::default()?;
+            default.binds = vec![Bind::new("/".into())?];
+            default.symlinks.clear();
+
+            Ok(default)
+        } else {
+            Self::default()?.pass_files(paths, false)
+        }
     }
 
     fn cur_dir_rw(mut self) -> Result<Self> {
