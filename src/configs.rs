@@ -44,10 +44,10 @@ impl BwrapArgs {
                 ("/usr/sbin".into(), "/sbin".into()),
             ],
             binds: vec![
-                Bind::new("/usr".into()),
-                Bind::new("/sys".into()),
-                Bind::new("/etc".into()),
-                Bind::new(format!("{home_dir}/.cargo/bin").into()),
+                Bind::new("/usr".into())?,
+                Bind::new("/sys".into())?,
+                Bind::new("/etc".into())?,
+                Bind::new(format!("{home_dir}/.cargo/bin").into())?,
             ],
         };
         if let Ok(term) = env::var("TERM") {
@@ -67,11 +67,11 @@ fn xdg_runtime_dir() -> Result<String> {
 }
 
 impl BwrapArgs {
-    pub fn pass_files(mut self, input: Vec<String>, skip_first: bool) -> Self {
+    pub fn pass_files(mut self, input: Vec<String>, skip_first: bool) -> Result<Self> {
         for file in input.into_iter().skip(skip_first as usize) {
-            self.binds.push(Bind::new(file.into()));
+            self.binds.push(Bind::new(file.into())?);
         }
-        self
+        Ok(self)
     }
     pub fn ls(input: &mut Vec<String>) -> Result<Self> {
         input.insert(0, "eza".into());
@@ -87,14 +87,14 @@ impl BwrapArgs {
             paths.push(working_directory()?)
         }
 
-        Ok(Self::default()?.pass_files(paths, false))
+        Self::default()?.pass_files(paths, false)
     }
 
     fn cur_dir_rw(mut self) -> Result<Self> {
         self.binds.push(Bind::with_bind_type(
             working_directory()?.into(),
             BindType::ReadWrite,
-        ));
+        )?);
         Ok(self)
     }
 
@@ -108,7 +108,7 @@ impl BwrapArgs {
         self.binds.push(Bind::with_bind_type(
             format!("{xdg_runtime_dir}/{wayland_display}").into(),
             BindType::ReadWrite,
-        ));
+        )?);
 
         Ok(self)
     }
@@ -119,19 +119,19 @@ impl BwrapArgs {
         let home_dir = home_dir()?;
 
         let additional_paths = [
-            Bind::new(format!("{home_dir}/.config/nvim").into()),
+            Bind::new(format!("{home_dir}/.config/nvim").into())?,
             Bind::with_bind_type(
                 format!("{home_dir}/.cache/nvim").into(),
                 BindType::ReadWrite,
-            ),
+            )?,
             Bind::with_bind_type(
                 format!("{home_dir}/.local/share/nvim").into(),
                 BindType::ReadWrite,
-            ),
+            )?,
             Bind::with_bind_type(
                 format!("{home_dir}/.local/state/nvim").into(),
                 BindType::ReadWrite,
-            ),
+            )?,
         ];
 
         let mut args = Self::default()?.cur_dir_rw()?.wl_socket()?;
@@ -171,7 +171,7 @@ impl BwrapArgs {
             bind.destination.clone(),
             bind.bind_type,
             bind.allow_missing_src,
-        ));
+        )?);
 
         Ok(())
     }

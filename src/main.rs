@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::{
     path::{Path, PathBuf},
     process::{exit, Command},
@@ -160,10 +160,10 @@ pub struct Bind {
 }
 
 impl Bind {
-    fn new(source: PathBox) -> Self {
+    fn new(source: PathBox) -> Result<Self> {
         Self::_new_inner(source, None, BindType::default(), false)
     }
-    fn with_bind_type(source: PathBox, bind_type: BindType) -> Self {
+    fn with_bind_type(source: PathBox, bind_type: BindType) -> Result<Self> {
         Self::_new_inner(source, None, bind_type, false)
     }
     pub fn _new_inner(
@@ -171,16 +171,19 @@ impl Bind {
         destination: Option<PathBox>,
         bind_type: BindType,
         allow_missing_src: bool,
-    ) -> Self {
+    ) -> Result<Self> {
         if !allow_missing_src && !source.0.exists() {
-            eprintln!("Source for binding doesnt exist: {}", source.0.display())
+            Err(anyhow!(
+                "Source for binding doesnt exist: {}",
+                source.0.display()
+            ))?
         }
-        Self {
+        Ok(Self {
             bind_type,
             source,
             destination,
             allow_missing_src,
-        }
+        })
     }
 }
 
@@ -243,9 +246,10 @@ fn main() -> Result<()> {
 
     let (mut bwrap_args, input) = match cli_args.command {
         Commands::Default { input } => (BwrapArgs::default()?, input),
-        Commands::PassFiles { input } => {
-            (BwrapArgs::default()?.pass_files(input.clone(), true), input)
-        }
+        Commands::PassFiles { input } => (
+            BwrapArgs::default()?.pass_files(input.clone(), true)?,
+            input,
+        ),
         Commands::Ls { mut files } => (BwrapArgs::ls(&mut files)?, files),
         Commands::Nvim { mut args } => (BwrapArgs::nvim(&mut args)?, args),
     };
