@@ -1,6 +1,6 @@
 use std::env;
 
-use crate::{Bind, BindType, BwrapArgs, Dir};
+use crate::{Bind, BindType, BwrapArgs, Dir, PathBox};
 
 impl Default for BwrapArgs {
     fn default() -> Self {
@@ -13,15 +13,16 @@ impl Default for BwrapArgs {
         let mut args = Self {
             unshare_all: true,
             share_net: false,
-            hostname: Some("jail".into()),
             clear_env: true,
+            new_session: true,
+            die_with_parent: true,
+            follow_symlinks: true,
+            hostname: Some("jail".into()),
             set_env: vec![
                 ("PATH".into(), path.into()),
                 ("XDG_RUNTIME_DIR".into(), xdg_runtime_dir.clone().into()),
             ],
             unset_env: Vec::new(),
-            new_session: true,
-            die_with_parent: true,
             proc: Some("/proc".into()),
             dev: Some("/dev".into()),
             tmp_fs: Some("/tmp".into()),
@@ -135,6 +136,39 @@ impl BwrapArgs {
         args.binds.extend(additional_paths);
 
         args
+    }
+    // TODO: Remove .clone()'s
+    pub fn add_symlinks(mut self) -> Self {
+        let len = self.binds.len();
+
+        for i in 0..len {
+            let bind = self.binds[i].clone();
+
+            if bind.source.0.is_symlink() {
+                self.add_symlink_dst(bind.source.clone(), bind.clone());
+            } else if bind.source.0.is_dir() {
+                bind.source
+                    .0
+                    .read_dir()
+                    .expect("Reading dir failed")
+                    .map(|res| PathBox::from(res.expect("Reading dir entry failed").path()))
+                    .filter(|path| path.0.is_symlink())
+                    .for_each(|symlink| self.add_symlink_dst(symlink, bind.clone()));
+            }
+        }
+
+        self
+    }
+
+    fn add_symlink_dst(&mut self, source: PathBox, bind: Bind) {
+        // Where the source symlink points to
+        let src_dst = source.0.read_link().expect("Reading symlink failed");
+        self.binds.push(Bind::_new_inner(
+            src_dst.into(),
+            bind.destination.clone(),
+            bind.bind_type,
+            bind.allow_missing_src,
+        ));
     }
 }
 

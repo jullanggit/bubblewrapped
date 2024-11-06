@@ -1,4 +1,7 @@
-use std::process::{exit, Command};
+use std::{
+    path::{Path, PathBuf},
+    process::{exit, Command},
+};
 
 use clap::Parser;
 use cli::{Cli, Commands};
@@ -15,23 +18,25 @@ pub struct BwrapArgs {
     pub clear_env: bool,
     pub new_session: bool,
     pub die_with_parent: bool,
+    pub follow_symlinks: bool,
     /// Custom hostname in the sandbox (requires --unshare-uts)
     pub hostname: Option<Box<str>>,
     /// Mount new procfs
-    pub proc: Option<Box<str>>,
+    pub proc: Option<PathBox>,
     /// Mount new dev
-    pub dev: Option<Box<str>>,
+    pub dev: Option<PathBox>,
     /// Mount new tmpfs
-    pub tmp_fs: Option<Box<str>>,
+    pub tmp_fs: Option<PathBox>,
     /// Set environment variables
     pub set_env: Vec<(Box<str>, Box<str>)>,
     /// Unset environment variables
     pub unset_env: Vec<Box<str>>,
     pub binds: Vec<Bind>,
     pub dirs: Vec<Dir>,
-    pub symlinks: Vec<(Box<str>, Box<str>)>,
+    pub symlinks: Vec<(PathBox, PathBox)>,
 }
 impl BwrapArgs {
+    // TODO: Maybe add assertions that paths are absolute
     fn args(&self) -> Vec<Box<str>> {
         let mut args = Vec::new();
 
@@ -41,6 +46,9 @@ impl BwrapArgs {
             if self.share_net {
                 args.push("--share-net".into());
             }
+        } else if self.share_net {
+            eprintln!("share-net can only be combined with unshare-all");
+            exit(1);
         }
 
         if self.clear_env {
@@ -63,15 +71,15 @@ impl BwrapArgs {
 
         if let Some(proc) = self.proc.clone() {
             args.push("--proc".into());
-            args.push(proc);
+            args.push(proc.into());
         }
         if let Some(dev) = self.dev.clone() {
             args.push("--dev".into());
-            args.push(dev);
+            args.push(dev.into());
         }
         if let Some(tmp_fs) = self.tmp_fs.clone() {
             args.push("--tmpfs".into());
-            args.push(tmp_fs);
+            args.push(tmp_fs.into());
         }
 
         for (var, value) in self.set_env.iter().cloned() {
@@ -86,7 +94,7 @@ impl BwrapArgs {
         }
 
         for bind in self.binds.iter().cloned() {
-            args.push(match (bind.bind_type, bind.ignore_missing_src) {
+            args.push(match (bind.bind_type, bind.allow_missing_src) {
                 (BindType::ReadOnly, false) => "--ro-bind".into(),
                 (BindType::ReadOnly, true) => "--ro-bind-try".into(),
                 (BindType::ReadWrite, false) => "--bind".into(),
@@ -94,8 +102,13 @@ impl BwrapArgs {
                 (BindType::Dev, false) => "--dev-bind".into(),
                 (BindType::Dev, true) => "--dev-bind-try".into(),
             });
-            args.push(bind.source.clone());
-            args.push(bind.destination.unwrap_or(bind.source));
+
+            let source: Box<str> = bind.source.into();
+            args.push(source.clone());
+            args.push(
+                bind.destination
+                    .map_or(source, |destination| destination.into()),
+            );
         }
 
         for dir in self.dirs.iter().cloned() {
@@ -104,13 +117,13 @@ impl BwrapArgs {
                 args.push(permissions);
             }
             args.push("--dir".into());
-            args.push(dir.path);
+            args.push(dir.path.into());
         }
 
         for (source, destination) in self.symlinks.iter().cloned() {
             args.push("--symlink".into());
-            args.push(source);
-            args.push(destination);
+            args.push(source.into());
+            args.push(destination.into());
         }
 
         args
@@ -139,22 +152,33 @@ impl BwrapArgs {
 #[derive(Clone)]
 pub struct Bind {
     pub bind_type: BindType,
-    pub source: Box<str>,
+    pub source: PathBox,
     // Defaults to source when unset
-    pub destination: Option<Box<str>>,
-    pub ignore_missing_src: bool,
+    pub destination: Option<PathBox>,
+    pub allow_missing_src: bool,
 }
 
 impl Bind {
-    fn new(source: Box<str>) -> Self {
-        Self::with_bind_type(source, BindType::default())
+    fn new(source: PathBox) -> Self {
+        Self::_new_inner(source, None, BindType::default(), false)
     }
-    fn with_bind_type(source: Box<str>, bind_type: BindType) -> Self {
+    fn with_bind_type(source: PathBox, bind_type: BindType) -> Self {
+        Self::_new_inner(source, None, bind_type, false)
+    }
+    pub fn _new_inner(
+        source: PathBox,
+        destination: Option<PathBox>,
+        bind_type: BindType,
+        allow_missing_src: bool,
+    ) -> Self {
+        if !allow_missing_src && !source.0.exists() {
+            eprintln!("Source for binding doesnt exist: {}", source.0.display())
+        }
         Self {
             bind_type,
             source,
-            destination: None,
-            ignore_missing_src: false,
+            destination,
+            allow_missing_src,
         }
     }
 }
@@ -172,16 +196,16 @@ pub enum BindType {
 pub struct Dir {
     // Really a 9-bit flag
     permissions: Option<Box<str>>,
-    path: Box<str>,
+    path: PathBox,
 }
 impl Dir {
-    fn new(path: Box<str>) -> Self {
+    fn new(path: PathBox) -> Self {
         Self {
             permissions: None,
             path,
         }
     }
-    fn with_perms(path: Box<str>, permissions: Box<str>) -> Self {
+    fn with_perms(path: PathBox, permissions: Box<str>) -> Self {
         Self {
             permissions: Some(permissions),
             path,
@@ -189,10 +213,34 @@ impl Dir {
     }
 }
 
+#[derive(Clone)]
+/// A wrapper type around Box<Path>
+pub struct PathBox(pub Box<Path>);
+impl From<&str> for PathBox {
+    fn from(value: &str) -> Self {
+        Self(Path::new(value).into())
+    }
+}
+impl From<String> for PathBox {
+    fn from(value: String) -> Self {
+        Self(Path::new(&value).into())
+    }
+}
+impl From<PathBuf> for PathBox {
+    fn from(value: PathBuf) -> Self {
+        Self(value.into())
+    }
+}
+impl From<PathBox> for Box<str> {
+    fn from(value: PathBox) -> Self {
+        value.0.to_str().expect("Path should be valid utf-8").into()
+    }
+}
+
 fn main() {
     let cli_args = Cli::parse();
 
-    let (bwrap_args, input) = match cli_args.command {
+    let (mut bwrap_args, input) = match cli_args.command {
         Commands::Default { input } => (BwrapArgs::default(), input),
         Commands::PassFiles { input } => {
             (BwrapArgs::default().pass_files(input.clone(), true), input)
@@ -200,6 +248,9 @@ fn main() {
         Commands::Ls { mut files } => (BwrapArgs::ls(&mut files), files),
         Commands::Nvim { mut args } => (BwrapArgs::nvim(&mut args), args),
     };
+    if bwrap_args.follow_symlinks {
+        bwrap_args = bwrap_args.add_symlinks();
+    }
 
     if input.is_empty() {
         eprintln!("Please supply a command to run in the sandbox");
