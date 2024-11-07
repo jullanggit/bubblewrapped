@@ -71,21 +71,23 @@ fn xdg_runtime_dir() -> Result<String> {
 }
 
 impl BwrapArgs {
-    pub fn pass_files(&mut self, input: Vec<String>, skip_first: bool) -> Result<()> {
-        for file in input.into_iter().skip(skip_first as usize) {
-            self.add_bind(Bind::new(file.into())?)?;
+    pub fn pass_files(&mut self, input: &[String], skip_first: bool) -> Result<()> {
+        for file in input.iter().skip(skip_first as usize) {
+            if !file.starts_with('-') {
+                self.add_bind(Bind::new(PathBox::from(file.clone()))?)?;
+            }
         }
         Ok(())
     }
     pub fn ls(&mut self, input: &[String]) -> Result<()> {
-        let mut paths: Vec<_> = input
-            .iter()
-            .filter(|part| !part.starts_with('-'))
-            .cloned()
-            .collect();
+        let num_paths = input.iter().filter(|part| !part.starts_with('-')).count();
 
-        if paths.is_empty() {
-            paths.push(working_directory()?)
+        let mut paths = input;
+
+        // TODO: Remove the need to compute the working directory if it isnt needed
+        let working_directory = &[working_directory()?];
+        if num_paths == 0 {
+            paths = working_directory;
         }
 
         // If the root folder is included, dont bother binding or symlinking anything (also avoids

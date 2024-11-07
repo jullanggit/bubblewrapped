@@ -289,7 +289,7 @@ fn main() -> Result<()> {
     let command = match cli_args.command {
         Commands::Default(input) => input.command,
         Commands::PassFiles(input) => {
-            args.pass_files(input.command.clone(), true)?;
+            args.pass_files(&input.command, true)?;
             input.command
         }
         Commands::Ls(mut input) => {
