@@ -73,7 +73,7 @@ fn xdg_runtime_dir() -> Result<String> {
 impl BwrapArgs {
     pub fn pass_files(mut self, input: Vec<String>, skip_first: bool) -> Result<Self> {
         for file in input.into_iter().skip(skip_first as usize) {
-            self.binds.push(Bind::new(file.into())?);
+            self.add_bind(Bind::new(file.into())?)?;
         }
         Ok(self)
     }
@@ -105,10 +105,10 @@ impl BwrapArgs {
     }
 
     fn cur_dir_rw(mut self) -> Result<Self> {
-        self.binds.push(Bind::with_bind_type(
+        self.add_bind(Bind::with_bind_type(
             working_directory()?.into(),
             BindType::ReadWrite,
-        )?);
+        )?)?;
         Ok(self)
     }
 
@@ -119,10 +119,10 @@ impl BwrapArgs {
         self.set_env
             .push(("WAYLAND_DISPLAY".into(), wayland_display.clone()));
 
-        self.binds.push(Bind::with_bind_type(
+        self.add_bind(Bind::with_bind_type(
             format!("{xdg_runtime_dir}/{wayland_display}").into(),
             BindType::ReadWrite,
-        )?);
+        )?)?;
 
         Ok(self)
     }
@@ -155,7 +155,9 @@ impl BwrapArgs {
 
         let mut args = Self::default()?.cur_dir_rw()?.wl_socket()?;
 
-        args.binds.extend(additional_paths);
+        for bind in additional_paths {
+            args.add_bind(bind)?;
+        }
 
         Ok(args)
     }
@@ -190,12 +192,12 @@ impl BwrapArgs {
         // Where the source symlink points to
         match source.0.canonicalize() {
             Ok(dst) => {
-                self.binds.push(Bind::_new_inner(
+                self.add_bind(Bind::_new_inner(
                     dst.into(),
                     bind.destination.clone(),
                     bind.bind_type,
                     bind.allow_missing_src,
-                )?);
+                )?)?;
             }
             Err(e) => {
                 // Allow not found to happen, as we dont want to error on broken symlinks
