@@ -130,6 +130,7 @@ impl BwrapArgs {
 
         args
     }
+
     fn command(&self) -> Command {
         let args = self.args();
 
@@ -148,6 +149,26 @@ impl BwrapArgs {
         command.arg("--").args(input);
 
         command.spawn().unwrap().wait_with_output().unwrap();
+    }
+
+    fn add_bind(&mut self, bind: Bind) -> Result<()> {
+        for conflicting_bind in self
+            .binds
+            .iter_mut()
+            .filter(|existing_bind| existing_bind.source == bind.source)
+        {
+            match (conflicting_bind.bind_type, bind.bind_type) {
+                (BindType::Dev, BindType::Dev) => {}
+                (BindType::Dev, _) | (_, BindType::Dev) => {
+                    Err(anyhow!("Tried to change bind type to/from dev"))?
+                }
+                (BindType::ReadWrite, _) | (_, BindType::ReadWrite) => {
+                    conflicting_bind.bind_type = BindType::ReadWrite
+                }
+                _ => {}
+            }
+        }
+        Ok(())
     }
 }
 
