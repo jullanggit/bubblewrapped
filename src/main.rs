@@ -196,7 +196,7 @@ pub enum BindType {
     Dev,
 }
 
-/// Create an emtpy directory at path
+/// Create an empty directory at path
 #[derive(Clone, Debug)]
 pub struct Dir {
     // Really a 9-bit flag
