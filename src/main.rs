@@ -152,22 +152,22 @@ impl BwrapArgs {
     }
 
     fn add_bind(&mut self, bind: Bind) -> Result<()> {
-        for conflicting_bind in self
-            .binds
-            .iter_mut()
-            .filter(|existing_bind| existing_bind.source == bind.source)
-        {
-            match (conflicting_bind.bind_type, bind.bind_type) {
-                (BindType::Dev, BindType::Dev) => {}
-                (BindType::Dev, _) | (_, BindType::Dev) => {
-                    Err(anyhow!("Tried to change bind type to/from dev"))?
+        for existing_bind in &mut self.binds {
+            if existing_bind.source == bind.source {
+                match (existing_bind.bind_type, bind.bind_type) {
+                    (BindType::Dev, BindType::Dev) => {}
+                    (BindType::Dev, _) | (_, BindType::Dev) => {
+                        Err(anyhow!("Tried to change bind type to/from dev"))?
+                    }
+                    (BindType::ReadWrite, _) | (_, BindType::ReadWrite) => {
+                        existing_bind.bind_type = BindType::ReadWrite
+                    }
+                    _ => {}
                 }
-                (BindType::ReadWrite, _) | (_, BindType::ReadWrite) => {
-                    conflicting_bind.bind_type = BindType::ReadWrite
-                }
-                _ => {}
+                return Ok(());
             }
         }
+        self.binds.push(bind);
         Ok(())
     }
 }
