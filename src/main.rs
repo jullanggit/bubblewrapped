@@ -284,24 +284,37 @@ impl From<PathBox> for Box<str> {
 fn main() -> Result<()> {
     let cli_args: Cli = argh::from_env();
 
-    let (mut bwrap_args, input) = match cli_args.command {
-        Commands::Default(input) => (BwrapArgs::default()?, input.command),
-        Commands::PassFiles(input) => (
-            BwrapArgs::default()?.pass_files(input.command.clone(), true)?,
-            input.command,
-        ),
-        Commands::Ls(mut input) => (BwrapArgs::ls(&mut input.dirs)?, input.dirs),
-        Commands::Nvim(mut input) => (BwrapArgs::nvim(&mut input.args)?, input.args),
+    let mut args = BwrapArgs::default()?;
+
+    let command = match cli_args.command {
+        Commands::Default(input) => input.command,
+        Commands::PassFiles(input) => {
+            args.pass_files(input.command.clone(), true)?;
+            input.command
+        }
+        Commands::Ls(mut input) => {
+            args.ls(&input.dirs)?;
+
+            input.dirs.insert(0, "eza".into());
+            input.dirs
+        }
+        Commands::Nvim(mut input) => {
+            args.nvim()?;
+
+            input.args.insert(0, "nvim".into());
+            input.args
+        }
     };
-    if bwrap_args.follow_symlinks {
-        bwrap_args = bwrap_args.add_symlinks()?;
+    if args.follow_symlinks {
+        args.add_symlinks()?;
     }
 
-    if input.is_empty() {
+    if command.is_empty() {
         eprintln!("Please supply a command to run in the sandbox");
         exit(1);
     }
-    bwrap_args.run(input);
+
+    args.run(command);
 
     Ok(())
 }

@@ -71,18 +71,15 @@ fn xdg_runtime_dir() -> Result<String> {
 }
 
 impl BwrapArgs {
-    pub fn pass_files(mut self, input: Vec<String>, skip_first: bool) -> Result<Self> {
+    pub fn pass_files(&mut self, input: Vec<String>, skip_first: bool) -> Result<()> {
         for file in input.into_iter().skip(skip_first as usize) {
             self.add_bind(Bind::new(file.into())?)?;
         }
-        Ok(self)
+        Ok(())
     }
-    pub fn ls(input: &mut Vec<String>) -> Result<Self> {
-        input.insert(0, "eza".into());
-
+    pub fn ls(&mut self, input: &[String]) -> Result<()> {
         let mut paths: Vec<_> = input
             .iter()
-            .skip(1) // Skip the "eza"
             .filter(|part| !part.starts_with('-'))
             .cloned()
             .collect();
@@ -94,42 +91,35 @@ impl BwrapArgs {
         // If the root folder is included, dont bother binding or symlinking anything (also avoids
         // an error)
         if paths.contains(&"/".into()) {
-            let mut default = Self::default()?;
-            default.binds = vec![Bind::new("/".into())?];
-            default.symlinks.clear();
+            self.binds = vec![Bind::new("/".into())?];
+            self.symlinks.clear();
 
-            Ok(default)
+            Ok(())
         } else {
-            Self::default()?.pass_files(paths, false)
+            self.pass_files(paths, false)
         }
     }
 
-    fn cur_dir_rw(mut self) -> Result<Self> {
+    fn cur_dir_rw(&mut self) -> Result<()> {
         self.add_bind(Bind::with_bind_type(
             working_directory()?.into(),
             BindType::ReadWrite,
-        )?)?;
-        Ok(self)
+        )?)
     }
 
-    fn wl_socket(mut self) -> Result<Self> {
+    fn wl_socket(&mut self) -> Result<()> {
         let wayland_display = env::var("WAYLAND_DISPLAY")?.into_boxed_str();
         let xdg_runtime_dir = xdg_runtime_dir()?;
 
-        self.set_env
-            .push(("WAYLAND_DISPLAY".into(), wayland_display.clone()));
+        self.add_env(("WAYLAND_DISPLAY".into(), wayland_display.clone()))?;
 
         self.add_bind(Bind::with_bind_type(
             format!("{xdg_runtime_dir}/{wayland_display}").into(),
             BindType::ReadWrite,
-        )?)?;
-
-        Ok(self)
+        )?)
     }
 
-    pub fn nvim(nvim_args: &mut Vec<String>) -> Result<Self> {
-        nvim_args.insert(0, "nvim".into());
-
+    pub fn nvim(&mut self) -> Result<()> {
         let home_dir = home_dir()?;
 
         let additional_paths = [
@@ -153,16 +143,16 @@ impl BwrapArgs {
             )?,
         ];
 
-        let mut args = Self::default()?.cur_dir_rw()?.wl_socket()?;
-
         for bind in additional_paths {
-            args.add_bind(bind)?;
+            self.add_bind(bind)?;
         }
 
-        Ok(args)
+        self.cur_dir_rw()?;
+        self.wl_socket()
     }
+
     // TODO: Remove .clone()'s
-    pub fn add_symlinks(mut self) -> Result<Self> {
+    pub fn add_symlinks(&mut self) -> Result<()> {
         let len = self.binds.len();
 
         for i in 0..len {
@@ -185,7 +175,7 @@ impl BwrapArgs {
             }
         }
 
-        Ok(self)
+        Ok(())
     }
 
     fn add_symlink_dst(&mut self, source: PathBox, bind: Bind) -> Result<()> {
