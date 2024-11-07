@@ -146,6 +146,11 @@ impl BwrapArgs {
                 format!("{home_dir}/.local/state/nvim").into(),
                 BindType::ReadWrite,
             )?,
+            // Because of markdown-preview.nvim
+            Bind::with_bind_type(
+                format!("{home_dir}/.cache/yarn").into(),
+                BindType::ReadWrite,
+            )?,
         ];
 
         let mut args = Self::default()?.cur_dir_rw()?.wl_socket()?;
