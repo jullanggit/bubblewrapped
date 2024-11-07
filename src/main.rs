@@ -4,7 +4,6 @@ use std::{
     process::{exit, Command},
 };
 
-use clap::Parser;
 use cli::{Cli, Commands};
 
 mod cli;
@@ -264,16 +263,16 @@ impl From<PathBox> for Box<str> {
 }
 
 fn main() -> Result<()> {
-    let cli_args = Cli::parse();
+    let cli_args: Cli = argh::from_env();
 
     let (mut bwrap_args, input) = match cli_args.command {
-        Commands::Default { input } => (BwrapArgs::default()?, input),
-        Commands::PassFiles { input } => (
-            BwrapArgs::default()?.pass_files(input.clone(), true)?,
-            input,
+        Commands::Default(input) => (BwrapArgs::default()?, input.command),
+        Commands::PassFiles(input) => (
+            BwrapArgs::default()?.pass_files(input.command.clone(), true)?,
+            input.command,
         ),
-        Commands::Ls { mut files } => (BwrapArgs::ls(&mut files)?, files),
-        Commands::Nvim { mut args } => (BwrapArgs::nvim(&mut args)?, args),
+        Commands::Ls(mut input) => (BwrapArgs::ls(&mut input.dirs)?, input.dirs),
+        Commands::Nvim(mut input) => (BwrapArgs::nvim(&mut input.args)?, input.args),
     };
     if bwrap_args.follow_symlinks {
         bwrap_args = bwrap_args.add_symlinks()?;
