@@ -29,6 +29,7 @@ pub struct BwrapArgs {
     /// Mount new tmpfs
     pub tmp_fs: Option<PathBox>,
     /// Set environment variables
+    // TODO: Maybe change this to a hashmap
     pub set_env: Vec<(Box<str>, Box<str>)>,
     /// Unset environment variables
     pub unset_env: Vec<Box<str>>,
@@ -150,6 +151,7 @@ impl BwrapArgs {
         command.spawn().unwrap().wait_with_output().unwrap();
     }
 
+    /// Adds (deduplicated) bind. Errors when changing bind type to/from dev
     fn add_bind(&mut self, bind: Bind) -> Result<()> {
         for existing_bind in &mut self.binds {
             if existing_bind.source == bind.source {
@@ -167,6 +169,23 @@ impl BwrapArgs {
             }
         }
         self.binds.push(bind);
+        Ok(())
+    }
+
+    /// Adds (deduplicated) env variable
+    fn add_env(&mut self, (key, value): (Box<str>, Box<str>)) -> Result<()> {
+        for (existing_key, existing_value) in &self.set_env {
+            if key == *existing_key {
+                if value != *existing_value {
+                    return Err(anyhow!("Tried to overwrite env variable '{key}' with '{value}' (previous: '{existing_value}' "));
+                } else {
+                    break;
+                }
+            }
+        }
+
+        self.set_env.push((key, value));
+
         Ok(())
     }
 }
